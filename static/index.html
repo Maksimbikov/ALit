@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>ALit</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      margin: 0;
+    }
+    .sidebar {
+      width: 250px;
+      background: #1f1f1f;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .message {
+      background: #2b2b2b;
+      margin-bottom: 8px;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .code-block {
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      background: #444;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .input-area {
+      display: flex;
+      padding: 10px;
+      background: #1f1f1f;
+    }
+    .input-area input {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      margin-right: 5px;
+    }
+    .input-area button {
+      padding: 10px;
+      border: none;
+      border-radius: 4px;
+      background: #444;
+      color: #fff;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>ALit</h2>
+    <button onclick="newChat()">+ Новый чат</button>
+    <div class="chat-history" id="chatHistory"></div>
+  </div>
+
+  <div class="main">
+    <div class="messages" id="messages"></div>
+    <div class="input-area">
+      <input type="text" id="messageInput" placeholder="Напишите сообщение..." onkeypress="if(event.key==='Enter'){sendMessage()}">
+      <button onclick="sendMessage()">Отправить</button>
+    </div>
+  </div>
+
+<script>
+let currentChatId = Date.now().toString();
+let chats = {};
+
+function newChat(){
+  currentChatId = Date.now().toString();
+  document.getElementById('messages').innerHTML = '';
+  loadChats();
+}
+
+function loadChats(){
+  fetch('/get_chats')
+  .then(r=>r.json())
+  .then(data=>{
+    chats = data;
+    const chatHistory = document.getElementById('chatHistory');
+    chatHistory.innerHTML='';
+    Object.keys(chats).forEach(id=>{
+      const btn=document.createElement('button');
+      btn.textContent='Чат '+id;
+      btn.style.marginBottom='5px';
+      btn.onclick=()=>{currentChatId=id;renderChat()};
+      chatHistory.appendChild(btn);
+    })
+  })
+}
+
+function renderChat(){
+  document.getElementById('messages').innerHTML='';
+  if(chats[currentChatId]){
+    chats[currentChatId].forEach(m=>{
+      addMessage(m.user,'Вы');
+      addMessage(m.al,'ALit',m.code);
+    })
+  }
+}
+
+function addMessage(text,sender,isCode=false){
+  const messages=document.getElementById('messages');
+  const div=document.createElement('div');
+  if(isCode){
+    const codeBlock=document.createElement('div');
+    codeBlock.className='code-block';
+    codeBlock.textContent=text.replace(/```/g,'');
+    const copyBtn=document.createElement('button');
+    copyBtn.textContent='Скопировать';
+    copyBtn.className='copy-btn';
+    copyBtn.onclick=()=>navigator.clipboard.writeText(codeBlock.textContent);
+    codeBlock.appendChild(copyBtn);
+    div.appendChild(codeBlock);
+  } else {
+    div.className='message';
+    div.textContent=`${sender}: ${text}`;
+  }
+  messages.appendChild(div);
+  messages.scrollTop=messages.scrollHeight;
+}
+
+function sendMessage(){
+  const input=document.getElementById('messageInput');
+  const message=input.value.trim();
+  if(!message) return;
+  addMessage(message,'Вы');
+  input.value='';
+  fetch('/ask',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({chat_id:currentChatId,message:message})
+  }).then(r=>r.json()).then(data=>{
+    addMessage(data.answer,'ALit',data.is_code);
+    loadChats();
+  })
+}
+
+loadChats();
+</script>
+</body>
+</html>
